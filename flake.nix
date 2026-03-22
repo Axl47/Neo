@@ -1,5 +1,5 @@
 {
-  description = "A development environment for twitter-apk with Java";
+  description = "A development environment for Neo";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -14,11 +14,15 @@
       {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
-            jre          # Java Runtime Environment (OpenJDK)
+            python313
+            uv
+            jdk17
           ];
 
           shellHook = ''
             echo "Environment loaded!"
+            echo "Python: $(python --version)"
+            echo "uv: $(uv --version)"
             echo "Java: $(java --version | head -n1)"
           '';
         };

@@ -1,10 +1,10 @@
-name: Release
+name: Build
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -13,11 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu' # See 'Supported distributions' for available options
-          java-version: '17'
+          distribution: zulu
+          java-version: "17"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -28,12 +28,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Try building
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          TG_THREAD_ID: ${{ secrets.TG_THREAD_ID }}
-        run: |
-          mkdir -p bins
-          uv run main.py
+      - name: Build APKs
+        run: uv run main.py build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neo-dist
+          path: dist/

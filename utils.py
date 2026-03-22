@@ -1,76 +1,36 @@
 import os
-import shutil
 import requests
 import subprocess
 import sys
-from typing import Optional, List
-from github import get_last_build_version
+from pathlib import Path
+
+from config import SigningConfig
+from constants import SCRAPER_HEADERS
 
 _scraper = None
+
 
 def get_scraper():
     global _scraper
     if _scraper is None:
         import cloudscraper
+
         _scraper = cloudscraper.create_scraper()
-        _scraper.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-        })
+        _scraper.headers.update(SCRAPER_HEADERS)
     return _scraper
 
 
 def panic(message: str):
     print(message, file=sys.stderr)
-    exit(1)
-
-
-def send_message(message: str, token: str, chat_id: str, thread_id: str):
-    endpoint = f"https://api.telegram.org/bot{token}/sendMessage"
-
-    data = {
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": "true",
-        "text": message,
-        "message_thread_id": thread_id,
-        "chat_id": chat_id,
-    }
-
-    requests.post(endpoint, data=data)
-
-
-def report_to_telegram():
-    tg_token = os.environ["TG_TOKEN"]
-    tg_chat_id = os.environ["TG_CHAT_ID"]
-    tg_thread_id = os.environ["TG_THREAD_ID"]
-    release = get_last_build_version("crimera/twitter-apk")
-
-    if release is None:
-        raise Exception("Could not fetch release")
-
-    downloads = [
-        f"[{asset.name}]({asset.browser_download_url})" for asset in release.assets
-    ]
-
-    message = f"""
-[New Update Released !]({release.html_url})
-
-▼ Downloads ▼
-
-{"\n\n".join(downloads)}
-"""
-
-    print(message)
-
-    send_message(message, tg_token, tg_chat_id, tg_thread_id)
+    raise SystemExit(1)
 
 
 def download(link, out, headers=None, use_scraper=False):
-    dir_name = os.path.dirname(out)
-    if dir_name:
-        os.makedirs(dir_name, exist_ok=True)
+    output_path = Path(out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if os.path.exists(out):
-        print(f"{out} already exists skipping download")
+    if output_path.exists():
+        print(f"{output_path} already exists; skipping download")
         return
 
     if use_scraper:
@@ -78,58 +38,123 @@ def download(link, out, headers=None, use_scraper=False):
 
     session = get_scraper() if use_scraper else requests
 
-    # https://www.slingacademy.com/article/python-requests-module-how-to-download-files-from-urls/#Streaming_Large_Files
-    with session.get(link, stream=True, headers=headers) as r:
+    with session.get(link, stream=True, headers=headers, timeout=300) as r:
         r.raise_for_status()
-        with open(out, "wb") as f:
+        with output_path.open("wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
 
 
-def run_command(command: list[str]):
-    cmd = subprocess.run(command, capture_output=True, shell=True)
-
-    try:
-        cmd.check_returncode()
-    except subprocess.CalledProcessError:
-        print(cmd.stdout)
-        print(cmd.stderr)
-        exit(1)
+def ensure_directory(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
-def merge_apk(path: str):
+def merge_apk(apkeditor_path: Path, path: Path) -> Path:
     subprocess.run(
-        ["java", "-jar", "./bins/apkeditor.jar", "m", "-extractNativeLibs", "true", "-i", path]
-    ).check_returncode()
+        [
+            "java",
+            "-jar",
+            str(apkeditor_path),
+            "m",
+            "-extractNativeLibs",
+            "true",
+            "-i",
+            str(path),
+        ],
+        check=True,
+        cwd=path.parent,
+    )
+    return path.with_name(f"{path.stem}_merged.apk")
+
+
+def ensure_signing_keystore(signing: SigningConfig) -> Path:
+    if signing.keystore_path.exists():
+        return signing.keystore_path
+
+    signing.keystore_path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "keytool",
+            "-genkeypair",
+            "-keystore",
+            str(signing.keystore_path),
+            "-storetype",
+            "JKS",
+            "-storepass",
+            signing.keystore_password,
+            "-alias",
+            signing.key_alias,
+            "-keypass",
+            signing.key_password,
+            "-keyalg",
+            "RSA",
+            "-keysize",
+            "2048",
+            "-validity",
+            "36500",
+            "-dname",
+            "CN=Neo Local, OU=Neo, O=Neo, L=Local, ST=Local, C=US",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return signing.keystore_path
+
+
+def sign_apk(apk_signer_path: Path, apk_path: Path, signing: SigningConfig) -> Path:
+    ensure_signing_keystore(signing)
+    subprocess.run(
+        [
+            "java",
+            "-jar",
+            str(apk_signer_path),
+            "--apks",
+            str(apk_path),
+            "--ks",
+            str(signing.keystore_path),
+            "--ksAlias",
+            signing.key_alias,
+            "--ksPass",
+            signing.keystore_password,
+            "--ksKeyPass",
+            signing.key_password,
+            "--overwrite",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return apk_path
 
 
 def patch_apk(
-    cli: str,
-    patches: str,
-    apk: str,
+    cli: Path,
+    patches: Path,
+    apk: Path,
+    apk_signer: Path,
+    signing: SigningConfig,
     includes: list[str] | None = None,
     excludes: list[str] | None = None,
-    out: str | None = None,
-):
+    out: Path | None = None,
+) -> Path:
+    ensure_signing_keystore(signing)
+    target_output = out or apk.with_name(f"{apk.stem}-patched.apk")
+    if target_output.exists():
+        target_output.unlink()
+
     command = [
         "java",
         "-jar",
-        cli,
+        str(cli),
         "patch",
         "-p",
-        patches,
-        # use j-hc's keystore so we wouldn't need to reinstall
-        "--keystore",
-        "ks.keystore",
-        "--keystore-entry-password",
-        "123456789",
-        "--keystore-password",
-        "123456789",
-        "--signer",
-        "jhc",
-        "--keystore-entry-alias",
-        "jhc",
+        str(patches),
+        "--unsigned",
+        "-o",
+        str(target_output),
     ]
 
     if includes is not None:
@@ -142,29 +167,8 @@ def patch_apk(
             command.append("-d")
             command.append(e)
 
-    command.append(apk)
+    command.append(str(apk))
 
-    subprocess.run(command).check_returncode()
-
-    # remove -patched from the apk to match out
-    if out is not None:
-        cli_output = f"{str(apk).removesuffix(".apk")}-patched.apk"
-        if os.path.exists(out):
-            os.unlink(out)
-        shutil.move(cli_output, out)
-
-
-def publish_release(tag: str, files: list[str], message: str, title = ""):
-    key = os.environ.get("GITHUB_TOKEN")
-    if key is None:
-        raise Exception("GITHUB_TOKEN is not set")
-
-    command = ["gh", "release", "create", "--latest", tag, "--notes", message, "--title", title]
-
-    if len(files) == 0:
-        raise Exception("Files should have atleast one item")
-
-    for file in files:
-        command.append(file)
-
-    subprocess.run(command, env=os.environ.copy()).check_returncode()
+    subprocess.run(command, check=True)
+    sign_apk(apk_signer, target_output, signing)
+    return target_output
