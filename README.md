@@ -26,6 +26,12 @@ Build the latest release from APKMirror:
 uv run main.py
 ```
 
+You can also invoke the packaged CLI directly:
+
+```bash
+python -m neo
+```
+
 Build a specific version:
 
 ```bash
@@ -97,3 +103,10 @@ Telegram integration is intentionally not part of this repo anymore.
 
 Neo now generates a local signing keystore on first build under `.cache/signing/`.
 That keeps repeat local builds installable as updates on the same machine.
+
+## Project Layout
+
+- `neo/cli.py`: argument parsing and command dispatch
+- `neo/commands/`: top-level build, release, and doctor commands
+- `neo/build/`: APK patching, manifest generation, and build helpers
+- `neo/integrations/`: APKMirror, GitHub, and HTTP/download integrations

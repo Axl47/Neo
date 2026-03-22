@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 
 import requests
 
-from constants import GITHUB_API_BASE_URL
+from neo.constants import GITHUB_API_BASE_URL
 
 
 @dataclass(frozen=True)

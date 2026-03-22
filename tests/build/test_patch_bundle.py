@@ -1,6 +1,6 @@
 import unittest
 
-from patch_bundle import (
+from neo.build.patch_bundle import (
     force_show_all_sensitive_tweet_media_in_smali,
     force_show_sensitive_media_in_smali,
 )

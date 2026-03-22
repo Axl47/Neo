@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from manifest import build_manifest_payload, render_release_notes
+from neo.build.manifest import build_manifest_payload, render_release_notes
 
 
 class ManifestTests(unittest.TestCase):

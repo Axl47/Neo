@@ -1,6 +1,6 @@
 import unittest
 
-from github_api import build_create_release_payload, resolve_repo_slug
+from neo.integrations.github_api import build_create_release_payload, resolve_repo_slug
 
 
 class RepoResolutionTests(unittest.TestCase):

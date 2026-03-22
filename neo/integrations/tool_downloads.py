@@ -4,8 +4,8 @@ import re
 
 import requests
 
-from constants import GITHUB_API_BASE_URL
-from utils import download
+from neo.constants import GITHUB_API_BASE_URL
+from neo.integrations.http import download
 
 
 @dataclass(frozen=True)

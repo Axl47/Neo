@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 @dataclass(frozen=True)

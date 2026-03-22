@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from apkmirror import Version
-from config import BuildConfig, merged_apk_path
-from utils import patch_apk
+from neo.config import BuildConfig, merged_apk_path
+from neo.integrations.apkmirror import Version
+from neo.build.apk_tools import patch_apk
 
 
 def build_apks(build_config: BuildConfig, latest_version: Version) -> list[Path]:

@@ -53,7 +53,10 @@ def _replace_zip_entry(
                         destination_archive.writestr(entry_name, replacement_bytes)
                         continue
 
-                    destination_archive.writestr(source_info, source_archive.read(source_info.filename))
+                    destination_archive.writestr(
+                        source_info,
+                        source_archive.read(source_info.filename),
+                    )
 
         shutil.move(rebuilt_archive, archive_path)
 
@@ -96,11 +99,7 @@ def force_show_all_sensitive_tweet_media_in_smali(smali: str) -> str:
     if current_method == forced_method:
         return smali
 
-    return (
-        f"{smali[:match.start()]}"
-        f"{forced_method}"
-        f"{smali[match.end():]}"
-    )
+    return f"{smali[:match.start()]}{forced_method}{smali[match.end():]}"
 
 
 def apply_neo_bundle_customizations(apkeditor_path: Path, patches_path: Path) -> None:

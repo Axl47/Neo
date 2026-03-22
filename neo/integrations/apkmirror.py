@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import cast
+
 from bs4 import BeautifulSoup, Tag
-from utils import download, get_scraper
+
+from neo.integrations.http import download, get_scraper
 
 
 @dataclass
@@ -26,19 +28,19 @@ class App:
 class FailedToFindElement(Exception):
     def __init__(self, message=None) -> None:
         self.message = (
-            f"Failed to find element{' ' + message if message is not None else ''}"  # noqa: E501
+            f"Failed to find element{' ' + message if message is not None else ''}"
         )
         super().__init__(self.message)
 
 
 class FailedToFetch(Exception):
     def __init__(self, url=None) -> None:
-        self.message = f"Failed to fetch{' ' + url if url is not None else ''}"  # noqa: E501
+        self.message = f"Failed to fetch{' ' + url if url is not None else ''}"
         super().__init__(self.message)
 
 
 def get_versions(url: str) -> list[Version]:
-    """Get the latest version of the app from the given apkmirror url"""
+    """Get the latest version of the app from the given APKMirror URL."""
     response = get_scraper().get(url)
     if response.status_code != 200:
         raise FailedToFetch(f"{url}: {response.status_code}")
@@ -48,39 +50,38 @@ def get_versions(url: str) -> list[Version]:
 
     out: list[Version] = []
     if versions is not None:
-        for versionRow in cast(Tag, versions).findChildren("div", recursive=False)[1:]:
-            if versionRow is None:
-                print(f"{versionRow} is None")
+        for version_row in cast(Tag, versions).findChildren("div", recursive=False)[1:]:
+            if version_row is None:
+                print(f"{version_row} is None")
                 continue
 
-            version = versionRow.find("span", {"class": "infoSlide-value"})
+            version = version_row.find("span", {"class": "infoSlide-value"})
             if version is None:
                 continue
 
-            version = version.string.strip()
-            link = f"https://www.apkmirror.com/{versionRow.find('a')['href']}"
-            out.append(Version(version=version, link=link))
+            parsed_version = version.string.strip()
+            link = f"https://www.apkmirror.com/{version_row.find('a')['href']}"
+            out.append(Version(version=parsed_version, link=link))
 
     return out
 
 
-def download_apk(variant: Variant, path: str = "big_file.apkm"):
-    """Download apk from the variant link"""
+def download_apk(variant: Variant, path: str = "big_file.apkm") -> None:
+    """Download an APK/APKM from the provided variant link."""
     url = variant.link
 
     response = get_scraper().get(url)
-
     if response.status_code != 200:
         raise FailedToFetch(url)
 
     response_body = BeautifulSoup(response.content, "html.parser")
 
-    downloadButton = response_body.find("a", {"class": "downloadButton"})
-    if downloadButton is None:
+    download_button = response_body.find("a", {"class": "downloadButton"})
+    if download_button is None:
         raise FailedToFindElement("Download button")
 
     download_page_link = (
-        f"https://www.apkmirror.com/{cast(Tag, downloadButton).attrs['href']}"
+        f"https://www.apkmirror.com/{cast(Tag, download_button).attrs['href']}"
     )
 
     download_page = get_scraper().get(download_page_link)
@@ -112,7 +113,6 @@ def get_variants(version: Version) -> list[Variant]:
         raise FailedToFetch(url)
 
     variants_page_body = BeautifulSoup(variants_page.content, "html.parser")
-
     variants_table = variants_page_body.find("div", {"class": "table"})
     if variants_table is None:
         raise FailedToFindElement("variants table")

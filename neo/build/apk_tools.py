@@ -1,49 +1,7 @@
-import os
-import requests
-import subprocess
-import sys
 from pathlib import Path
+import subprocess
 
-from config import SigningConfig
-from constants import SCRAPER_HEADERS
-
-_scraper = None
-
-
-def get_scraper():
-    global _scraper
-    if _scraper is None:
-        import cloudscraper
-
-        _scraper = cloudscraper.create_scraper()
-        _scraper.headers.update(SCRAPER_HEADERS)
-    return _scraper
-
-
-def panic(message: str):
-    print(message, file=sys.stderr)
-    raise SystemExit(1)
-
-
-def download(link, out, headers=None, use_scraper=False):
-    output_path = Path(out)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if output_path.exists():
-        print(f"{output_path} already exists; skipping download")
-        return
-
-    if use_scraper:
-        print(f"Downloading with scraper: {link}")
-
-    session = get_scraper() if use_scraper else requests
-
-    with session.get(link, stream=True, headers=headers, timeout=300) as r:
-        r.raise_for_status()
-        with output_path.open("wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+from neo.config import SigningConfig
 
 
 def ensure_directory(path: Path) -> Path:
@@ -158,14 +116,14 @@ def patch_apk(
     ]
 
     if includes is not None:
-        for i in includes:
+        for include in includes:
             command.append("-e")
-            command.append(i)
+            command.append(include)
 
     if excludes is not None:
-        for e in excludes:
+        for exclude in excludes:
             command.append("-d")
-            command.append(e)
+            command.append(exclude)
 
     command.append(str(apk))
 
