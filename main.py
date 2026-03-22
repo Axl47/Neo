@@ -31,6 +31,7 @@ from manifest import (
     resolve_manifest_outputs,
     write_manifest,
 )
+from patch_bundle import apply_neo_apk_customizations, apply_neo_bundle_customizations
 from utils import ensure_directory, merge_apk
 
 
@@ -218,6 +219,10 @@ def build_command(
         source_descriptor = target_version.link
 
     tool_releases = download_tooling(effective_build_config)
+    apply_neo_bundle_customizations(
+        effective_build_config.tool_cache.apkeditor_path,
+        effective_build_config.tool_cache.patches_path,
+    )
 
     if not merged_path.exists():
         bundle_path = source_bundle_path(effective_build_config, target_version.version)
@@ -229,6 +234,11 @@ def build_command(
 
     if not merged_path.exists():
         raise RuntimeError(f"Expected merged APK at {merged_path}")
+
+    apply_neo_apk_customizations(
+        effective_build_config.tool_cache.apkeditor_path,
+        merged_path,
+    )
 
     outputs = build_apks(effective_build_config, target_version)
     manifest = build_manifest_payload(
